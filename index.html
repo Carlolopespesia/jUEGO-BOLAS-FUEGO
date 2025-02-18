@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Juego Mejorado: Muñeco en el Bosque</title>
+  <style>
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: black;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <script>
+    // Configuración del canvas y contexto
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // Cargar imágenes
+    const forestImg = new Image();
+    forestImg.src = "boque.webp"; // Asegúrate de que este archivo exista
+
+    const characterImg = new Image();
+    characterImg.src = "hulio.png"; // Asegúrate de que este archivo exista
+
+    const fireballImg = new Image();
+    fireballImg.src = "EWE.png"; // Asegúrate de que este archivo exista
+
+    // Variables globales de juego
+    let gameOver = false;
+    let gameWin = false;
+    let score = 0;
+    let lastTime = 0;
+    let fireballTimer = 0;
+    let fireballSpawnInterval = 250; // Intervalo inicial en milisegundos
+
+    // Objeto jugador
+    const player = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      width: 50,
+      height: 50,
+      speed: 200, // píxeles por segundo
+      draw() {
+        if (characterImg.complete && characterImg.naturalWidth !== 0) {
+          ctx.drawImage(characterImg, this.x, this.y, this.width, this.height);
+        } else {
+          ctx.fillStyle = "red";
+          ctx.fillRect(this.x, this.y, this.width, this.height);
+        }
+      }
+    };
+
+    // Clase para las bolas de fuego
+    class Fireball {
+      constructor(x, y, dx, dy, size) {
+        this.x = x;
+        this.y = y;
+        this.dx = dx;
+        this.dy = dy;
+        this.size = size;
+      }
+      update(deltaTime) {
+        this.x += this.dx * deltaTime;
+        this.y += this.dy * deltaTime;
+      }
+      draw() {
+        if (fireballImg.complete && fireballImg.naturalWidth !== 0) {
+          ctx.drawImage(fireballImg, this.x, this.y, this.size, this.size);
+        } else {
+          ctx.fillStyle = "orange";
+          ctx.beginPath();
+          ctx.arc(this.x + this.size / 2, this.y + this.size / 2, this.size / 2, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+      }
+    }
+
+    // Array de bolas de fuego
+    let fireballs = [];
+
+    // Función para generar bolas de fuego desde una pared aleatoria
+    function spawnFireball() {
+      if (gameOver || gameWin) return;
+      const wall = Math.floor(Math.random() * 4); // 0: izquierda, 1: derecha, 2: arriba, 3: abajo
+      let x, y, angle;
+      const baseSpeed = 100; // velocidad base en píxeles/segundo
+      const randomExtraSpeed = Math.random() * 100; // hasta 100 píxeles/segundo extra
+      const speedFB = baseSpeed + randomExtraSpeed;
+      const size = 20;
+
+      if (wall === 0) { // Pared izquierda
+        x = 0 - size;
+        y = Math.random() * canvas.height;
+        // Ángulo entre -90° y 90°
+        angle = (Math.random() * Math.PI) - (Math.PI / 2);
+      } else if (wall === 1) { // Pared derecha
+        x = canvas.width;
+        y = Math.random() * canvas.height;
+        // Ángulo entre 90° y 270°
+        angle = (Math.random() * Math.PI) + (Math.PI / 2);
+      } else if (wall === 2) { // Pared superior
+        y = 0 - size;
+        x = Math.random() * canvas.width;
+        // Ángulo entre 0° y 180°
+        angle = Math.random() * Math.PI;
+      } else { // Pared inferior
+        y = canvas.height;
+        x = Math.random() * canvas.width;
+        // Ángulo entre 180° y 360°
+        angle = (Math.random() * Math.PI) + Math.PI;
+      }
+      const dx = speedFB * Math.cos(angle);
+      const dy = speedFB * Math.sin(angle);
+      fireballs.push(new Fireball(x, y, dx, dy, size));
+    }
+
+    // Manejo de entradas
+    const keys = {};
+    window.addEventListener("keydown", (e) => {
+      keys[e.key] = true;
+      // Reiniciar el juego con la tecla "R" si ha terminado
+      if ((gameOver || gameWin) && e.key.toLowerCase() === "r") {
+        restartGame();
+      }
+    });
+    window.addEventListener("keyup", (e) => {
+      keys[e.key] = false;
+    });
+
+    // Función de actualización
+    function update(deltaTime) {
+      // Movimiento del jugador
+      if (!gameOver && !gameWin) {
+        if (keys["ArrowUp"]) player.y -= player.speed * deltaTime;
+        if (keys["ArrowDown"]) player.y += player.speed * deltaTime;
+        if (keys["ArrowLeft"]) player.x -= player.speed * deltaTime;
+        if (keys["ArrowRight"]) player.x += player.speed * deltaTime;
+      }
+
+      // Comprobar si el jugador ha salido del canvas (victoria)
+      if (
+        player.x > canvas.width ||
+        player.y > canvas.height ||
+        (player.x + player.width) < 0 ||
+        (player.y + player.height) < 0
+      ) {
+        gameWin = true;
+      }
+
+      // Actualizar bolas de fuego
+      fireballs.forEach(fb => fb.update(deltaTime));
+      // Eliminar bolas fuera de la pantalla (con margen)
+      fireballs = fireballs.filter(fb =>
+        fb.x > -fb.size * 2 && fb.x < canvas.width + fb.size * 2 &&
+        fb.y > -fb.size * 2 && fb.y < canvas.height + fb.size * 2
+      );
+
+      // Comprobar colisiones entre el jugador y las bolas
+      for (let fb of fireballs) {
+        if (
+          player.x < fb.x + fb.size &&
+          player.x + player.width > fb.x &&
+          player.y < fb.y + fb.size &&
+          player.y + player.height > fb.y
+        ) {
+          gameOver = true;
+          break;
+        }
+      }
+
+      // Incrementar la puntuación (en segundos)
+      score += deltaTime;
+      // Aumentar la dificultad reduciendo el intervalo de aparición (mínimo 100ms)
+      fireballSpawnInterval = Math.max(100, 250 - Math.floor(score / 10) * 20);
+    }
+
+    // Función para dibujar todo en el canvas
+    function draw() {
+      // Dibujar fondo (imagen del bosque o verde si falla)
+      if (forestImg.complete && forestImg.naturalWidth !== 0) {
+        ctx.drawImage(forestImg, 0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.fillStyle = "green";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      // Dibujar bolas de fuego
+      fireballs.forEach(fb => fb.draw());
+
+      // Dibujar jugador
+      player.draw();
+
+      // Mostrar puntuación
+      ctx.fillStyle = "white";
+      ctx.font = "20px Arial";
+      ctx.textAlign = "left";
+      ctx.fillText("Score: " + Math.floor(score), 10, 30);
+
+      // Mensaje de Game Over o Victory
+      if (gameOver) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "red";
+        ctx.font = "50px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("Game Over", canvas.width / 2, canvas.height / 2);
+        ctx.font = "20px Arial";
+        ctx.fillText("Press R to restart", canvas.width / 2, canvas.height / 2 + 40);
+      }
+      if (gameWin) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "yellow";
+        ctx.font = "50px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("You Win!", canvas.width / 2, canvas.height / 2);
+        ctx.font = "20px Arial";
+        ctx.fillText("Press R to restart", canvas.width / 2, canvas.height / 2 + 40);
+      }
+    }
+
+    // Bucle principal del juego usando requestAnimationFrame y deltaTime
+    function gameLoop(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const deltaTime = (timestamp - lastTime) / 1000;
+      lastTime = timestamp;
+
+      // Actualizar timer para las bolas de fuego
+      fireballTimer += deltaTime * 1000;
+      if (fireballTimer >= fireballSpawnInterval) {
+        spawnFireball();
+        fireballTimer = 0;
+      }
+
+      update(deltaTime);
+      draw();
+
+      if (!gameOver && !gameWin) {
+        requestAnimationFrame(gameLoop);
+      }
+    }
+
+    // Reiniciar el juego
+    function restartGame() {
+      gameOver = false;
+      gameWin = false;
+      score = 0;
+      player.x = canvas.width / 2;
+      player.y = canvas.height / 2;
+      fireballs = [];
+      lastTime = 0;
+      fireballTimer = 0;
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Comprobar que las imágenes se hayan cargado
+    let imagesLoaded = 0;
+    function checkImagesLoaded() {
+      imagesLoaded++;
+      if (imagesLoaded === 3) {
+        requestAnimationFrame(gameLoop);
+      }
+    }
+    forestImg.onload = checkImagesLoaded;
+    forestImg.onerror = function() {
+      console.error("Error al cargar la imagen del bosque.");
+      checkImagesLoaded();
+    };
+    characterImg.onload = checkImagesLoaded;
+    characterImg.onerror = function() {
+      console.error("Error al cargar la imagen del personaje.");
+      checkImagesLoaded();
+    };
+    fireballImg.onload = checkImagesLoaded;
+    fireballImg.onerror = function() {
+      console.error("Error al cargar la imagen de la bola de fuego.");
+      checkImagesLoaded();
+    };
+  </script>
+</body>
+</html>
