@@ -9,47 +9,67 @@
       margin: 0 auto;
       background: black;
     }
-    /* Estilos para el joystick y controles táctiles */
+    /* Contenedor de controles */
     #controls {
       display: flex;
-      flex-direction: column;
-      align-items: center;
+      flex-direction: row;
+      justify-content: center;
       margin-top: 10px;
+      /* Qué queden separados entre sí */
+      gap: 10rem;
     }
-    #joystickContainer {
-      position: relative;
-      width: 100px;
-      height: 100px;
-      background: rgba(255, 255, 255, 0.1);
-      border: 2px solid #fff;
-      border-radius: 50%;
-      touch-action: none;
-      margin-bottom: 10px;
+    /* Contenedor del D‑Pad usando Grid */
+    #dpadContainer {
+      display: grid;
+      grid-template-areas:
+        ". up ."
+        "left . right"
+        ". down .";
+      gap: 10px;
+      margin-bottom: 15px;
     }
-    #joystick {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 50px;
-      height: 50px;
-      background: rgba(255, 255, 255, 0.5);
-      border: 2px solid #fff;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
+    .dpad-btn {
+      width: 60px;
+      height: 60px;
+      background-color: #444;
+      color: #fff;
+      font-size: 24px;
+      border: none;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      -webkit-tap-highlight-color: transparent;
     }
+    #upButton { grid-area: up; }
+    #downButton { grid-area: down; }
+    #leftButton { grid-area: left; }
+    #rightButton { grid-area: right; }
     #restartButton {
       padding: 10px 20px;
-      font-size: 16px;
+      font-size: 18px;
+      background-color: #0066cc;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
       cursor: pointer;
+      width: 10%;
     }
+    #restartButton:active {
+      background-color: #004999;
+    }
+    
+  
   </style>
 </head>
 <body>
   <canvas id="gameCanvas" width="800" height="600"></canvas>
 
   <div id="controls">
-    <div id="joystickContainer">
-      <div id="joystick"></div>
+    <div id="dpadContainer">
+      <button id="upButton" class="dpad-btn">▲</button>
+      <button id="leftButton" class="dpad-btn">◄</button>
+      <button id="rightButton" class="dpad-btn">►</button>
+      <button id="downButton" class="dpad-btn">▼</button>
     </div>
     <button id="restartButton" onclick="restartGame()">Restart</button>
   </div>
@@ -171,73 +191,52 @@
       keys[e.key] = false;
     });
 
-    // Variables y elementos para el joystick
-    const joystickContainer = document.getElementById("joystickContainer");
-    const joystick = document.getElementById("joystick");
-    let joystickActive = false;
-    let joystickDelta = { x: 0, y: 0 };
+    // Manejo de entradas por D‑Pad (botones direccionales)
+    const dpad = { up: false, down: false, left: false, right: false };
 
-    // Funciones para el joystick
-    function updateJoystick(touchX, touchY) {
-      const rect = joystickContainer.getBoundingClientRect();
-      const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-      const dx = touchX - center.x;
-      const dy = touchY - center.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      const maxDistance = 40; // distancia máxima que se puede mover el joystick
-      let clampedX = dx;
-      let clampedY = dy;
-      if (distance > maxDistance) {
-        clampedX = (dx / distance) * maxDistance;
-        clampedY = (dy / distance) * maxDistance;
-      }
-      // Normalizar la dirección (valor entre -1 y 1)
-      joystickDelta = { x: clampedX / maxDistance, y: clampedY / maxDistance };
-      // Actualizar la posición visual del joystick
-      joystick.style.transform = `translate(${clampedX}px, ${clampedY}px)`;
+    function addDpadListeners(buttonId, direction) {
+      const btn = document.getElementById(buttonId);
+      // Para dispositivos táctiles
+      btn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        dpad[direction] = true;
+      });
+      btn.addEventListener("touchend", (e) => {
+        e.preventDefault();
+        dpad[direction] = false;
+      });
+      // Para mouse (pruebas en escritorio)
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        dpad[direction] = true;
+      });
+      btn.addEventListener("mouseup", (e) => {
+        e.preventDefault();
+        dpad[direction] = false;
+      });
+      btn.addEventListener("mouseleave", (e) => {
+        e.preventDefault();
+        dpad[direction] = false;
+      });
     }
 
-    function resetJoystick() {
-      joystickDelta = { x: 0, y: 0 };
-      joystick.style.transform = "translate(0px, 0px)";
-    }
-
-    joystickContainer.addEventListener("touchstart", function(e) {
-      e.preventDefault();
-      joystickActive = true;
-      updateJoystick(e.touches[0].clientX, e.touches[0].clientY);
-    });
-
-    joystickContainer.addEventListener("touchmove", function(e) {
-      e.preventDefault();
-      if (joystickActive) {
-        updateJoystick(e.touches[0].clientX, e.touches[0].clientY);
-      }
-    });
-
-    joystickContainer.addEventListener("touchend", function(e) {
-      e.preventDefault();
-      joystickActive = false;
-      resetJoystick();
-    });
-
-    joystickContainer.addEventListener("touchcancel", function(e) {
-      e.preventDefault();
-      joystickActive = false;
-      resetJoystick();
-    });
+    addDpadListeners("upButton", "up");
+    addDpadListeners("downButton", "down");
+    addDpadListeners("leftButton", "left");
+    addDpadListeners("rightButton", "right");
 
     // Función de actualización
     function update(deltaTime) {
-      // Movimiento del jugador (teclado y joystick)
+      // Movimiento del jugador (teclado y D‑Pad)
       if (!gameOver && !gameWin) {
         if (keys["ArrowUp"]) player.y -= player.speed * deltaTime;
         if (keys["ArrowDown"]) player.y += player.speed * deltaTime;
         if (keys["ArrowLeft"]) player.x -= player.speed * deltaTime;
         if (keys["ArrowRight"]) player.x += player.speed * deltaTime;
-        // Movimiento adicional por joystick
-        player.x += joystickDelta.x * player.speed * deltaTime;
-        player.y += joystickDelta.y * player.speed * deltaTime;
+        if (dpad.up) player.y -= player.speed * deltaTime;
+        if (dpad.down) player.y += player.speed * deltaTime;
+        if (dpad.left) player.x -= player.speed * deltaTime;
+        if (dpad.right) player.x += player.speed * deltaTime;
       }
 
       // Comprobar si el jugador ha salido del canvas (victoria)
@@ -308,7 +307,7 @@
         ctx.textAlign = "center";
         ctx.fillText("Game Over", canvas.width / 2, canvas.height / 2);
         ctx.font = "20px Arial";
-        ctx.fillText("Press R or Restart button to restart", canvas.width / 2, canvas.height / 2 + 40);
+        ctx.fillText("Press R or Restart to try again", canvas.width / 2, canvas.height / 2 + 40);
       }
       if (gameWin) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
@@ -318,7 +317,7 @@
         ctx.textAlign = "center";
         ctx.fillText("You Win!", canvas.width / 2, canvas.height / 2);
         ctx.font = "20px Arial";
-        ctx.fillText("Press R or Restart button to restart", canvas.width / 2, canvas.height / 2 + 40);
+        ctx.fillText("Press R or Restart to play again", canvas.width / 2, canvas.height / 2 + 40);
       }
     }
 
